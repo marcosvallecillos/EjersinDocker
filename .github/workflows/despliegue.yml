@@ -20,8 +20,12 @@ jobs:
       - name: Install dependencies
         run: composer install --no-dev --prefer-dist --optimize-autoloader
       
+      - name: Install dev dependencies
+        run: composer install --dev 
+      
       - name: Run tests
-        run: ./vendor/bin/phpunit tests
+        run: ./vendor/bin/phpunit tests || phpunit tests
+
 
   deploy:
     runs-on: ubuntu-latest
