@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -18,7 +18,7 @@ jobs:
           php-version: '8.3'
       
       - name: Install dependencies
-        run: composer install
+        run: composer install --no-dev --prefer-dist --optimize-autoloader
       
       - name: Run tests
         run: ./vendor/bin/phpunit tests
@@ -28,7 +28,7 @@ jobs:
     needs: test
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
       
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -36,7 +36,7 @@ jobs:
           php-version: '8.3'
       
       - name: Install dependencies
-        run: composer install
+        run: composer install --no-dev --prefer-dist --optimize-autoloader
       
       - name: Deploy to server
         env:
@@ -48,15 +48,21 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          
-          # Ensure deploy path exists
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+           
+          # Asegurar que la ruta de despliegue existe
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "mkdir -p $DEPLOY_PATH"
-          
-          # Sync the application files to the server
-          rsync -avz --delete --exclude 'tests' --exclude '.git' . $USERNAME@$HOST:$DEPLOY_PATH
-          
-          # Run Composer install on the server
+
+          # Sincronizar archivos con el servidor
+          rsync -avz --delete-after --exclude 'tests' --exclude '.git' . $USERNAME@$HOST:$DEPLOY_PATH
+
+          # Instalar dependencias en el servidor
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "cd $DEPLOY_PATH && composer install --no-dev --optimize-autoloader"
-          
-          # Restart Apache
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "sudo systemctl restart apache2"
+
+          # Reiniciar Apache solo si está instalado
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "if systemctl list-units --type=service | grep -q apache2; then sudo systemctl restart apache2; fi"
+
+          # Limpiar clave SSH después de la ejecución
+          ssh-agent -k
+          rm -f ~/.ssh/id_rsa
